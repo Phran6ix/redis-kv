@@ -11,77 +11,102 @@ import (
 var CRLF = []byte("\r\n")
 
 func Parse(b []byte) ([]RedisValue, error) {
-	//  *2\r\n$5\r\nhello\r\n$5\r\nworld\r\n
+	//  *112\r\n$5\r\nhello\r\n$5\r\nworld\r\n
 
 	idx := 0
 
 	if !bytes.HasPrefix(b, []byte("*")) {
+		log.Println("DOES NOT START KE?")
 		log.Println("Expecting an array")
 		return nil, errors.New("-Error expecting an array as first byte")
 	}
 
 	// Move the index to the length of the array
-	idx += 1
-	length := int(b[idx])
-	fmt.Println("this is the length of the array => %d", length)
+	idx += len([]byte("*"))
+
+	lengthidx := bytes.Index(b[idx:], CRLF)
+	fmt.Println(lengthidx)
+	if lengthidx == -1 {
+		return nil, errors.New("-Error Missing protocol terminator")
+	}
+	lengthBytes := b[idx : lengthidx+idx]
+
+	length, err := strconv.Atoi(string(lengthBytes))
+	if err != nil {
+		return nil, errors.New("-Error Invalid integer provided for array length")
+	}
+
+	fmt.Printf("The raw bytes => %q bytes\n", lengthBytes)
+	fmt.Printf("this is the length of the array => %d\n", length)
 
 	// move the index to the start of the array
-	idx += len(CRLF)
+
+	idx += len(lengthBytes) + len(CRLF)
 	done := 0
 
-	redisValue := make([]RedisValue, length)
+	fmt.Printf("The length %d \n", length)
+	redisValue := make([]RedisValue, 0, length)
 
-	for {
+	for done < length {
 		if len(b) < idx+1 {
 			break
 		}
-		if done == length {
-			break
-		}
 
-		end := bytes.Index(b, CRLF)
+		end := bytes.Index(b[idx:], CRLF)
 		if end == -1 {
-			return nil, errors.New("Incomplete command")
+			return nil, errors.New("-Error Incomplete command")
 		}
 
 		data := b[idx : idx+end]
-		fmt.Println("DATA => %s", data)
+		fmt.Printf("DATA => %q\n", data)
 
 		// handle strings
 
 		if bytes.HasPrefix(data, []byte("+")) {
+			fmt.Println("shou")
 			// +OK\r\n
 			redisValue = append(redisValue, parseString(data[1:]))
 		} else if bytes.HasPrefix(data, []byte(":")) {
+			fmt.Println("shou2")
 			i, err := parseInt(data[1:])
 			if err != nil {
 				return nil, err
 			}
 			redisValue = append(redisValue, i)
 		} else if bytes.HasPrefix(data, []byte("-")) {
+			fmt.Println("shou3")
 			// -Error message\r\n
 			redisValue = append(redisValue, parseError(data[1:]))
 		} else if bytes.HasPrefix(data, []byte("#")) {
+			fmt.Println("shou4")
 			bv, err := parseBoolean(data[1:])
 			if err != nil {
 				return nil, err
 			}
 			redisValue = append(redisValue, bv)
 		} else if bytes.HasPrefix(data, []byte(",")) {
+			fmt.Println("shou5")
 			db, err := parseDouble(data[1:])
 			if err != nil {
 				return nil, err
 			}
 			redisValue = append(redisValue, db)
 		} else if bytes.HasPrefix(data, []byte("$")) {
+			fmt.Println("shou6")
 			// $<length>\r\n<data>\r\n
-			bs, read, err := parseBulkString(data[1:])
+			fmt.Printf("The total byte data => %q \n ", data)
+			bs, read, err := parseBulkString(b[idx:])
 			if err != nil {
 				return nil, err
 			}
 			idx += read
+			done++
+
 			redisValue = append(redisValue, bs)
+
+			continue
 		} else {
+			fmt.Printf("prefix = %q ", data)
 			log.Fatal("Unsupported command")
 			return nil, errors.New("-Error Unsupported RESP type")
 		}
@@ -146,30 +171,40 @@ func parseBulkString(bb []byte) (val RedisValue, read int, error error) {
 	read = 0
 
 	lengthIdx := bytes.Index(bb, CRLF)
+	fmt.Printf("The length is %d \n %q \n ", lengthIdx, bb)
 	if lengthIdx == -1 {
 		return nil, 0, errors.New("-Error Invalid Data Type in bulk string ")
 	}
 
-	read += lengthIdx
-	lengthStr := string(bb[:lengthIdx])
+	read += lengthIdx + len(CRLF)
+
+	lengthStr := string(bb[1:lengthIdx])
 	length, err := strconv.Atoi(lengthStr)
 	if err != nil {
 		return nil, read, errors.New("-Error expected base 10 bulk string length")
 	}
+	// Null Bulk String
+	// $-1\r\n
+	if length == -1 {
+		return Null{}, read, nil
+	}
 
-	rawstrIdx := bytes.Index(bb[lengthIdx+len(CRLF):], CRLF)
+	rest := bb[lengthIdx+len(CRLF):]
+	fmt.Printf("The lengthstr %q\n", rest)
+	rawstrIdx := bytes.Index(rest, CRLF)
 
 	if rawstrIdx == -1 {
 		return nil, read, errors.New("-Error Incomplete Bulk String")
 	}
 
-	rawStr := bb[length+len(CRLF) : rawstrIdx]
-	println("RAW STR %b", rawStr)
+	rawStr := rest[:rawstrIdx]
+	fmt.Printf("\n RAW STR %q \n", rawStr)
 	if len(rawStr) != length {
 		return nil, read, errors.New("-Error Length of bulk string mismatch")
 	}
 
 	read += rawstrIdx + len(CRLF)
+	fmt.Println("total read = ", read)
 
 	return BulkString{Value: string(rawStr)}, read, nil
 }
@@ -202,12 +237,15 @@ type Double struct {
 	Value float64
 }
 
+type Null struct{}
+
 // type Array struct {
 // 	elements []RedisValue
 // }
 
 func (ss SimpleString) isRedisValue(bb []byte) {}
 func (e Error) isRedisValue(bb []byte)         {}
+func (n Null) isRedisValue(bb []byte)          {}
 func (b Boolean) isRedisValue(bb []byte)       {}
 func (i Integer) isRedisValue(bb []byte)       {}
 func (d Double) isRedisValue(bb []byte)        {}
