@@ -12,6 +12,7 @@ var CRLF = []byte("\r\n")
 
 func Parse(b []byte) ([]RedisValue, error) {
 	//  *2\r\n$5\r\nhello\r\n$5\r\nworld\r\n
+
 	idx := 0
 
 	if !bytes.HasPrefix(b, []byte("*")) {
@@ -26,11 +27,15 @@ func Parse(b []byte) ([]RedisValue, error) {
 
 	// move the index to the start of the array
 	idx += len(CRLF)
+	done := 0
 
-	redisValue := make([]any, length)
+	redisValue := make([]RedisValue, length)
 
 	for {
-		if idx == length {
+		if len(b) < idx+1 {
+			break
+		}
+		if done == length {
 			break
 		}
 
@@ -39,25 +44,63 @@ func Parse(b []byte) ([]RedisValue, error) {
 			return nil, errors.New("Incomplete command")
 		}
 
-		data := b[:end]
+		data := b[idx : idx+end]
+		fmt.Println("DATA => %s", data)
 
 		// handle strings
 
 		if bytes.HasPrefix(data, []byte("+")) {
+			// +OK\r\n
+			redisValue = append(redisValue, parseString(data[1:]))
 		} else if bytes.HasPrefix(data, []byte(":")) {
+			i, err := parseInt(data[1:])
+			if err != nil {
+				return nil, err
+			}
+			redisValue = append(redisValue, i)
 		} else if bytes.HasPrefix(data, []byte("-")) {
-		} else if bytes.HasPrefix(data, []byte("*")) {
+			// -Error message\r\n
+			redisValue = append(redisValue, parseError(data[1:]))
 		} else if bytes.HasPrefix(data, []byte("#")) {
+			bv, err := parseBoolean(data[1:])
+			if err != nil {
+				return nil, err
+			}
+			redisValue = append(redisValue, bv)
 		} else if bytes.HasPrefix(data, []byte(",")) {
+			db, err := parseDouble(data[1:])
+			if err != nil {
+				return nil, err
+			}
+			redisValue = append(redisValue, db)
+		} else if bytes.HasPrefix(data, []byte("$")) {
+			// $<length>\r\n<data>\r\n
+			bs, read, err := parseBulkString(data[1:])
+			if err != nil {
+				return nil, err
+			}
+			idx += read
+			redisValue = append(redisValue, bs)
 		} else {
 			log.Fatal("Unsupported command")
 			return nil, errors.New("-Error Unsupported RESP type")
 		}
 
-		// idx += end +
+		// idx += 1
+		idx += end + len(CRLF)
+		done++
 	}
 
-	return
+	// incomplete data
+	if done != length {
+		return nil, errors.New("-Error Incomplete Array Elements")
+	}
+
+	if len(b[idx:]) > 0 {
+		return nil, errors.New("-Error More than expected elements in the array")
+	}
+
+	return redisValue, nil
 }
 
 func parseString(bs []byte) RedisValue {
@@ -99,11 +142,47 @@ func parseBoolean(bb []byte) (RedisValue, error) {
 	return Boolean{Value: b}, nil
 }
 
+func parseBulkString(bb []byte) (val RedisValue, read int, error error) {
+	read = 0
+
+	lengthIdx := bytes.Index(bb, CRLF)
+	if lengthIdx == -1 {
+		return nil, 0, errors.New("-Error Invalid Data Type in bulk string ")
+	}
+
+	read += lengthIdx
+	lengthStr := string(bb[:lengthIdx])
+	length, err := strconv.Atoi(lengthStr)
+	if err != nil {
+		return nil, read, errors.New("-Error expected base 10 bulk string length")
+	}
+
+	rawstrIdx := bytes.Index(bb[lengthIdx+len(CRLF):], CRLF)
+
+	if rawstrIdx == -1 {
+		return nil, read, errors.New("-Error Incomplete Bulk String")
+	}
+
+	rawStr := bb[length+len(CRLF) : rawstrIdx]
+	println("RAW STR %b", rawStr)
+	if len(rawStr) != length {
+		return nil, read, errors.New("-Error Length of bulk string mismatch")
+	}
+
+	read += rawstrIdx + len(CRLF)
+
+	return BulkString{Value: string(rawStr)}, read, nil
+}
+
 type RedisValue interface {
 	isRedisValue([]byte)
 }
 
 type SimpleString struct {
+	Value string
+}
+
+type BulkString struct {
 	Value string
 }
 
@@ -132,3 +211,4 @@ func (e Error) isRedisValue(bb []byte)         {}
 func (b Boolean) isRedisValue(bb []byte)       {}
 func (i Integer) isRedisValue(bb []byte)       {}
 func (d Double) isRedisValue(bb []byte)        {}
+func (bs BulkString) isRedisValue(bb []byte)   {}
