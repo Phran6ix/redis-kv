@@ -11,12 +11,12 @@ import (
 var CRLF = []byte("\r\n")
 
 func Parse(b []byte) ([]RedisValue, error) {
+	// link:  https://redis.io/docs/latest/develop/reference/protocol-spec/#resp-protocol-description
 	//  *112\r\n$5\r\nhello\r\n$5\r\nworld\r\n
 
 	idx := 0
 
 	if !bytes.HasPrefix(b, []byte("*")) {
-		log.Println("DOES NOT START KE?")
 		log.Println("Expecting an array")
 		return nil, errors.New("-Error expecting an array as first byte")
 	}

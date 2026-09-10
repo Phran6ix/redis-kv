@@ -1,7 +1,6 @@
 package resp
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -9,7 +8,6 @@ import (
 )
 
 func TestParser(t *testing.T) {
-	fmt.Println("About to start testing")
 	var testCase []byte
 	assert := assert.New(t)
 	require := require.New(t)

@@ -25,7 +25,7 @@ func Start(listener net.Listener) error {
 		fmt.Println("we are now accepting connections")
 		conn, err := listener.Accept()
 		if err != nil {
-			log.Fatal(err)
+			log.Println(err)
 			return err
 		}
 

@@ -13,7 +13,7 @@ func handleConnection(conn net.Conn) error {
 
 	log.Printf("About to start")
 
-	buf := make([]byte, 1024)
+	buf := make([]byte, 4096)
 	n, err := conn.Read(buf)
 	if err != nil {
 
