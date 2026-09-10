@@ -137,7 +137,7 @@ func parseInt(bi []byte) (RedisValue, error) {
 	if err != nil {
 		return Integer{}, errors.New("-Error Invalid integer value")
 	}
-	return Integer{Value: int64(i)}, nil
+	return Integer{Value: int(i)}, nil
 }
 
 func parseError(be []byte) RedisValue {
@@ -230,7 +230,7 @@ type Boolean struct {
 }
 
 type Integer struct {
-	Value int64
+	Value int
 }
 
 type Double struct {

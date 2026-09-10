@@ -17,7 +17,7 @@ func Serialize(redisValue RedisValue) (string, error) {
 	case Integer:
 		result = fmt.Sprintf(":%d\r\n", r.Value)
 	case Null:
-		result = fmt.Sprint("-1\r\n")
+		result = fmt.Sprint("$-1\r\n")
 	case Error:
 		result = fmt.Sprintf("-%s\r\n", r.Message)
 	case Double:
