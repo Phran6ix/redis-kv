@@ -12,7 +12,7 @@ import (
 func handleConnection(conn net.Conn) error {
 	defer conn.Close()
 
-	log.Printf("About to start")
+	log.Printf("About to start A New Go Routine")
 
 	buf := make([]byte, 1024)
 
@@ -61,7 +61,6 @@ func handleConnection(conn net.Conn) error {
 		}
 
 		conn.Write([]byte(connData))
-
-		return nil
 	}
+	return nil
 }
