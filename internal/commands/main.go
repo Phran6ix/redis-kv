@@ -24,7 +24,7 @@ func ProcessCommand(redisValue []resp.RedisValue) (bool, any, error) {
 			}
 			var key string
 			var value any
-			k, ok := redisValue[1].(resp.SimpleString)
+			k, ok := redisValue[1].(resp.BulkString)
 			if !ok {
 				return false, "", errors.New("missing key in SET argument")
 			}
@@ -65,7 +65,7 @@ func ProcessCommand(redisValue []resp.RedisValue) (bool, any, error) {
 				return false, "", errors.New("key is missing in GET command")
 			}
 
-			key := redisValue[1].(resp.SimpleString)
+			key := redisValue[1].(resp.BulkString)
 
 			if key.Value == "" {
 				return false, "", errors.New("key is missing in GET command")

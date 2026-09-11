@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -17,6 +18,7 @@ func handleConnection(conn net.Conn) error {
 	buf := make([]byte, 1024)
 
 	for {
+		fmt.Println("----------------")
 		n, err := conn.Read(buf)
 		if err != nil {
 			if err == io.EOF {

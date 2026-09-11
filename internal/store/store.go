@@ -2,6 +2,7 @@
 package store
 
 import (
+	"fmt"
 	"sync"
 )
 
@@ -38,6 +39,8 @@ func (s *Store) Set(key string, value any) (bool, string) {
 	if exists {
 		return false, "key already exists in store"
 	}
+
+	fmt.Println("Successful")
 
 	s.store[key] = value
 	return true, ""

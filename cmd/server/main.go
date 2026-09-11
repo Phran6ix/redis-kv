@@ -7,8 +7,7 @@ import (
 )
 
 func Listener(port string) (net.Listener, error) {
-	var address string
-	address = "6380"
+	var address string = port
 
 	l, err := net.Listen("tcp", address)
 	if err != nil {
